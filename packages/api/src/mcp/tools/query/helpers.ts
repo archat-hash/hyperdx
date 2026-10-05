@@ -6,6 +6,7 @@ import { getMetadata } from '@hyperdx/common-utils/dist/core/metadata';
 import {
   convertToCategoricalChartConfig,
   getFirstTimestampValueExpression,
+  isTimeSeriesDisplayType,
   splitAndTrimWithBracket,
 } from '@hyperdx/common-utils/dist/core/utils';
 import { isBuilderSavedChartConfig } from '@hyperdx/common-utils/dist/guards';
@@ -555,9 +556,7 @@ export async function runConfigTile(
     // (packages/api/src/routers/external-api/v2/charts.ts:289).
     // Search tiles intentionally have no granularity (handled above).
     const granularityOverride =
-      !isSearch &&
-      (builderConfig.displayType === DisplayType.Line ||
-        builderConfig.displayType === DisplayType.StackedBar)
+      !isSearch && isTimeSeriesDisplayType(builderConfig.displayType)
         ? { granularity: options?.granularity ?? 'auto' }
         : {};
 

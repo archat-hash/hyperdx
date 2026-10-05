@@ -77,7 +77,11 @@ const timeChartSeriesSchema = z.object({
   metricDataType: z.optional(z.nativeEnum(MetricsDataType)),
   metricName: z.string().optional(),
   displayType: z
-    .union([z.literal('stacked_bar'), z.literal('line')])
+    .union([
+      z.literal('stacked_bar'),
+      z.literal('stacked_line'),
+      z.literal('line'),
+    ])
     .optional(),
 });
 
@@ -390,6 +394,16 @@ const externalDashboardBarRawSqlChartConfigSchema =
     seriesLimit: z.number().int().nonnegative().optional(),
   });
 
+const externalDashboardStackedLineChartConfigSchema =
+  externalDashboardBarChartConfigSchema.extend({
+    displayType: z.literal('stacked_line'),
+  });
+
+const externalDashboardStackedLineRawSqlChartConfigSchema =
+  externalDashboardBarRawSqlChartConfigSchema.extend({
+    displayType: z.literal('stacked_line'),
+  });
+
 const externalDashboardTableChartConfigSchema = z.object({
   displayType: z.literal('table'),
   sourceId: objectIdSchema,
@@ -567,6 +581,7 @@ const externalDashboardBuilderTileConfigSchema = z.discriminatedUnion(
   [
     externalDashboardLineChartConfigSchema,
     externalDashboardBarChartConfigSchema,
+    externalDashboardStackedLineChartConfigSchema,
     externalDashboardTableChartConfigSchema,
     externalDashboardNumberChartConfigSchema,
     externalDashboardPieChartConfigSchema,
@@ -587,6 +602,7 @@ const externalDashboardRawSqlTileConfigSchema = z.discriminatedUnion(
   [
     externalDashboardLineRawSqlChartConfigSchema,
     externalDashboardBarRawSqlChartConfigSchema,
+    externalDashboardStackedLineRawSqlChartConfigSchema,
     externalDashboardTableRawSqlChartConfigSchema,
     externalDashboardNumberRawSqlChartConfigSchema,
     externalDashboardPieRawSqlChartConfigSchema,
@@ -918,6 +934,11 @@ export const externalAlertBuilderChartConfigSchema = z.discriminatedUnion(
       where: z.string().max(10000).optional(),
       whereLanguage: whereLanguageSchema,
     }),
+    externalDashboardStackedLineChartConfigSchema.extend({
+      name: alertChartConfigNameSchema,
+      where: z.string().max(10000).optional(),
+      whereLanguage: whereLanguageSchema,
+    }),
     externalDashboardNumberChartConfigSchema.extend({
       name: alertChartConfigNameSchema,
       where: z.string().max(10000).optional(),
@@ -935,6 +956,11 @@ export const externalAlertRawSqlChartConfigSchema = z.discriminatedUnion(
       whereLanguage: rejectedAlertRawSqlWhereField,
     }),
     externalDashboardBarRawSqlChartConfigSchema.extend({
+      name: alertChartConfigNameSchema,
+      where: rejectedAlertRawSqlWhereField,
+      whereLanguage: rejectedAlertRawSqlWhereField,
+    }),
+    externalDashboardStackedLineRawSqlChartConfigSchema.extend({
       name: alertChartConfigNameSchema,
       where: rejectedAlertRawSqlWhereField,
       whereLanguage: rejectedAlertRawSqlWhereField,

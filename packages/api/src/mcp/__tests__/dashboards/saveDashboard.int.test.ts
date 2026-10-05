@@ -964,6 +964,10 @@ describe('MCP Dashboard Tools - clickstack_save_dashboard', () => {
         numberFormat,
         seriesLimit: 3,
       };
+      const stackedLineConfig = {
+        ...barConfig,
+        displayType: 'stacked_line' as const,
+      };
       const tableConfig = {
         displayType: 'table' as const,
         sourceId,
@@ -1011,6 +1015,7 @@ describe('MCP Dashboard Tools - clickstack_save_dashboard', () => {
       const tiles = [
         { name: 'Line', config: lineConfig },
         { name: 'Bar', config: barConfig },
+        { name: 'Stacked Line', config: stackedLineConfig },
         { name: 'Table', config: tableConfig },
         { name: 'Pie', config: pieConfig },
         { name: 'Categorical Bar', config: categoricalBarConfig },
@@ -1019,6 +1024,7 @@ describe('MCP Dashboard Tools - clickstack_save_dashboard', () => {
       const configByName: Record<string, object> = {
         Line: lineConfig,
         Bar: barConfig,
+        'Stacked Line': stackedLineConfig,
         Table: tableConfig,
         Pie: pieConfig,
         'Categorical Bar': categoricalBarConfig,
