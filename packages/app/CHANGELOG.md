@@ -1,5 +1,94 @@
 # @hyperdx/app
 
+## 2.41.0
+
+### Minor Changes
+
+- ff5befa8: Support "Minimum auto granularity" on PromQL sources. It floors the step of charts on auto granularity, as it does for metric sources, and `$__rate_interval` now uses it as the source's scrape interval (still 15s when unset) instead of always assuming 15s. A granularity picked on a tile is never changed.
+- ab703243: feat: attribute ClickHouse queries to the dashboard, tile, search or alert that
+  issued them
+
+  A row in `system.query_log` previously couldn't be attributed to the part of
+  HyperDX that produced it. Now every query HyperDX runs has a small JSON
+  `log_comment`, plus a `query_id` starting with `hdx-`.
+
+  Attribute load after the fact:
+
+  ```sql
+  SELECT
+      JSONExtractString(log_comment, 'surface') AS surface,
+      JSONExtractString(log_comment, 'dashboard') AS dashboard,
+      JSONExtractString(log_comment, 'tile') AS tile,
+      count(),
+      sum(read_rows)
+  FROM system.query_log
+  WHERE type = 'QueryFinish' AND log_comment != '' AND query_id like 'hdx-%'
+  GROUP BY ALL
+  ORDER BY sum(read_rows) DESC
+  ```
+
+  Or spot a query while it is still running, in `system.processes`, where the
+  `query_id` names the surface with no JSON parsing needed.
+
+  The payload records which part of the product asked (a dashboard, a search, an
+  alert, an MCP tool, the chart explorer, session replay, field lookups, and so
+  on), the dashboard and tile or saved search id, the source id, and on the server
+  the trace id of the request. Field lookups and autocomplete are labelled too, so
+  they can be told apart from a user's chart queries.
+
+  The exception is queries that skip settings processing: the `system.settings`,
+  server version and Cloud-detection probes, and the onboarding connection check.
+  They get a `query_id` but an empty `log_comment`.
+
+### Patch Changes
+
+- 07c93656: fix: cast FixedString columns before implicit hasToken search
+
+  A bare search term against a FixedString column such as OTel TraceId compiled to
+  hasToken(lower(TraceId), ...), which ClickHouse rejects. Those haystacks are now
+  CAST to String first.
+
+- 3615f122: fix: Match heatmap hover to the cell under the cursor
+- bd0da16c: feat: Edit heatmap value and count inline in the chart editor
+- 51e47b12: feat: rename dashboards and saved searches by clicking the title instead of a
+  pencil button
+
+  The name is now edited in place: Enter or clicking away saves, Escape reverts.
+
+- 0b855534: fix: fall back to the Map key scan when the text index read fails
+
+  `getMapKeys` returned an empty list whenever its `mergeTreeTextIndex` query
+  failed, so the rollup and bounded `mapKeys` scan paths never ran. ClickHouse
+  refuses `mergeTreeTextIndex` with `ACCESS_DENIED` on any table with a row
+  policy, which left search autocomplete with no Map keys on those tables. A
+  failed text index read now falls through to the next strategy. After a row
+  policy denial it skips the key rollup table, which the policy doesn't cover,
+  and reads keys only from the policy-filtered source table.
+
+- 0ddfe7d7: fix: use plural source kind labels and "OTel" spelling on the Sources page
+
+  The source form's data type options and the sources list now read Logs, Traces, OTel metrics, Sessions, and PromQL.
+
+- c372a71c: fix: pulse the list-bar and histogram charts while they refresh
+
+  The Services dashboard's list-bar and latency histogram charts kept their
+  previous data during a refresh but gave no sign that new data was loading,
+  and the histogram could briefly swap its chart for "Loading Chart Data...".
+  Both now keep their previous data on screen and pulse while the refetch runs,
+  like the other charts.
+
+- 4477f304: feat: show a trace's total wall-clock duration in the waterfall controls bar
+- Updated dependencies [14003f08]
+- Updated dependencies [76d33d73]
+- Updated dependencies [07c93656]
+- Updated dependencies [0b855534]
+- Updated dependencies [c2e21cf5]
+- Updated dependencies [ff5befa8]
+- Updated dependencies [ab703243]
+- Updated dependencies [e88cf3d5]
+  - @hyperdx/api@2.41.0
+  - @hyperdx/common-utils@0.31.0
+
 ## 2.40.0
 
 ### Minor Changes
