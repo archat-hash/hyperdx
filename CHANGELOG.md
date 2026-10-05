@@ -6,6 +6,133 @@ PR — keep the `hyperdx-release-notes` comment marker intact when editing so yo
 edits survive regeneration. Per-package detail lives in each
 `packages/*/CHANGELOG.md`.
 
+## v2.41.0 — 2026-10-05
+
+<!-- hyperdx-release-notes version=2.41.0 inputs=8f2b1b1f2bd2 -->
+
+**Query attribution and a session secret change**
+
+Every ClickHouse query HyperDX runs is now tagged with the part of the product
+that issued it, so a row in `system.query_log` tells you which dashboard, tile,
+search or alert put that load on your cluster. PromQL sources also pick up the
+"Minimum auto granularity" setting that metric sources already had, so charts
+left on auto granularity stop inferring buckets finer than your scrape
+interval. This release also restores Map attribute autocomplete on tables
+guarded by a ClickHouse row policy, where the search bar and the chart, alert
+and dashboard-filter editors had stopped suggesting any keys at all. If you run
+HyperDX with authentication enabled, set `EXPRESS_SESSION_SECRET` before
+upgrading — the API no longer falls back to a public default secret.
+
+### 💥 Breaking Changes
+
+- **The API no longer signs sessions with a public default secret**:
+  `EXPRESS_SESSION_SECRET` used to fall back to the public value `hyperdx is
+  cool 👋`. With authentication enabled, leaving it unset — or setting it
+  explicitly to that old public value — now gets a random secret generated at
+  startup and reported once in the logs, which means restarting the API signs
+  every user out and replicas do not share sessions between them. Set it to a
+  random string (`openssl rand -hex 32`) in any deployment with authentication
+  enabled; the public value remains available only in the no-auth local demo
+  (#3129, thanks @28Hus!).
+- **AI assistant calls are traced with the GenAI semantic conventions**: with
+  the AI SDK upgraded to v7, HyperDX now emits `invoke_agent`, `chat` and
+  `execute_tool` spans carrying `gen_ai.*` attributes in place of the legacy
+  `ai.*` span shape, and team and user attribution moves from
+  `ai.telemetry.metadata.*` to `hyperdx.team.id` and `user.id`, plus
+  `gen_ai.conversation.id` when a session is known. Update any saved search,
+  alert or dashboard keyed on the old `ai.*` span names or attributes (#3261).
+
+### ✨ New Features
+
+- **Attribute ClickHouse queries to the dashboard, search or alert behind
+  them**: every query HyperDX issues now carries a small JSON `log_comment` and
+  a `query_id` beginning with `hdx-`, naming the surface that asked — a
+  dashboard and tile, a saved search, an alert, an MCP tool, the chart explorer,
+  session replay or a field lookup — along with the source id and, from the
+  server, the trace id of the request. Group `system.query_log` by
+  `JSONExtractString(log_comment, 'surface')` to see where your read load
+  actually goes, or read the `query_id` straight out of `system.processes` to
+  name a query while it is still running, with no JSON parsing needed. The
+  exception is the probes that skip settings processing — the `system.settings`,
+  server version and Cloud-detection checks, and the onboarding connection test
+  — which get a `query_id` but an empty `log_comment` (#3155, thanks @tommyzli!).
+- **Minimum auto granularity on PromQL sources**: a PromQL source can now set a
+  "Minimum auto granularity", as a metric source already could, and it floors
+  the step of any chart left on auto granularity so a short date range cannot
+  infer buckets finer than your metrics actually arrive. `$__rate_interval` now
+  takes that value as the source's scrape interval instead of always assuming
+  15s — still 15s when the setting is left unset — and a granularity you choose
+  explicitly on a tile is never changed (#3292, thanks @karl-power!).
+
+### 🔧 Improvements
+
+- **A trace's total duration in the waterfall controls bar**: the trace
+  waterfall now shows how long the whole trace took in wall-clock terms, right
+  in its controls bar, so you can size up a trace without reading it off the
+  timeline (#3051, thanks @milansanjeev!).
+- **Heatmap value and count edited in the chart editor**: a heatmap's value and
+  count inputs now sit inline in the chart editor form, alongside the rest of
+  the tile's settings, rather than apart from them (#3277, thanks @pulpdrew!).
+- **Rename a dashboard or saved search by clicking its title**: the pencil
+  button is gone — click the name where it sits to edit it in place, with Enter
+  or a click away to save and Escape to revert (#3278, thanks @elizabetdev!).
+
+### 🐛 Bug Fixes
+
+- **Map key autocomplete works again on tables with a row policy**: ClickHouse
+  refuses the `mergeTreeTextIndex` lookup with `ACCESS_DENIED` on any table
+  carrying a row policy, and key discovery treated that as "no keys" rather than
+  trying anything else, so autocomplete offered nothing for `Map` columns such
+  as `ResourceAttributes` on those tables. A failed text index read now falls
+  through to the remaining strategies, reading keys from the policy-filtered
+  source table and skipping the key rollup table the policy does not cover
+  (#3268).
+- **Plain searches against a FixedString column such as a trace id run again**:
+  a bare search term compiled to `hasToken(lower(TraceId), ...)`, which
+  ClickHouse rejects on a FixedString column, so searching an OTel TraceId
+  errored instead of returning the rows. Those haystacks are now cast to
+  `String` first (#3271, thanks @milansanjeev!).
+- **Heatmap hover follows the cell under the cursor**: hovering a heatmap now
+  highlights and describes the cell you are actually pointing at, instead of a
+  neighbouring one (#3273, thanks @pulpdrew!).
+- **Services charts show that they are refreshing**: the Services dashboard's
+  list-bar and latency histogram charts kept their previous data through a
+  refresh with no sign that anything was loading, and the histogram could flash
+  "Loading Chart Data..." in place of the chart. Both now hold their data on
+  screen and pulse while the refetch runs, like every other chart
+  (#3229, thanks @Harshul1484!).
+- **Consistent source kind labels on the Sources page**: the source form's data
+  type options and the sources list now read Logs, Traces, OTel metrics,
+  Sessions and PromQL, so the names match between the two and "OTel" is spelt
+  the same way everywhere (#3257, thanks @teeohhem!).
+- **`clickstack_describe_source` returns partial results instead of timing
+  out**: the MCP describe deadline is now 30s, matching the other MCP query
+  tools, and hitting it no longer throws away the work. The tool returns the
+  schema and samples it managed to gather, marked `partial` with the
+  `skippedStages` it had to drop, and only reports a timeout error when the
+  column schema never loaded at all (#3259).
+- **The trace breakdown tool stops at the MCP timeout and says why**:
+  `clickstack_trace_top_time_consuming_operations` now runs its queries under
+  the MCP request timeout and its `max_execution_time` ceiling, which a source's
+  `querySettings` can no longer override, so the tool can no longer hang past
+  the deadline. A timeout now comes back with guidance to shorten the window or
+  narrow `parentFilter` rather than a misleading "invalid SQL" hint, and the
+  client-side `Timeout error.` carries that hint in every MCP tool. Sources
+  whose `timestampValueExpression` spans several columns, including a leading
+  Date column such as `EventDate, EventTime`, also return correct breakdowns
+  now (#3258).
+
+<!-- hyperdx-package-list -->
+
+### 📦 Package changelogs
+
+- `@hyperdx/api` 2.40.0 → 2.41.0 — [changelog](https://github.com/hyperdxio/hyperdx/blob/main/packages/api/CHANGELOG.md#2410)
+- `@hyperdx/app` 2.40.0 → 2.41.0 — [changelog](https://github.com/hyperdxio/hyperdx/blob/main/packages/app/CHANGELOG.md#2410)
+- `@hyperdx/common-utils` 0.30.0 → 0.31.0 — [changelog](https://github.com/hyperdxio/hyperdx/blob/main/packages/common-utils/CHANGELOG.md#0310)
+- `@hyperdx/otel-collector` 2.40.0 → 2.41.0 — [changelog](https://github.com/hyperdxio/hyperdx/blob/main/packages/otel-collector/CHANGELOG.md#2410)
+
+<!-- /hyperdx-package-list -->
+
 ## v2.40.0 — 2026-10-01
 
 <!-- hyperdx-release-notes version=2.40.0 inputs=b95c34cd6847 -->
